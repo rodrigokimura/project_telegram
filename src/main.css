@@ -1,11 +1,38 @@
 ChatListPane {
-    dock: left;
-    width: 15;
-    height: 100%;
-    color: #0f2b41;
-    background: dodgerblue;
+  dock: left;
+  width: 30;
+  height: 100%;
+}
+.currentchat {
+  background: dodgerblue;
 }
 
 ChatPane {
-  background: blue;
+  height: 10fr;
+}
+
+Input {
+  height: 1fr;
+}
+
+Message {
+  layout: horizontal;
+  align-horizontal: left;
+}
+
+Message.author-me {
+  align-horizontal: right;
+}
+
+Message Static.content {
+  width: auto;
+  min-width: 10;
+  max-width: 60%;
+  border: dodgerblue;
+  border-title-align: left;
+}
+
+Message.author-me Static.content {
+  border: gray;
+  border-title-align: right;
 }

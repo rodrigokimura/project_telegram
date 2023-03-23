@@ -27,6 +27,20 @@ class Client(Telegram):
             super().send_password(password)
             state = super().login(blocking=False)
 
+    def get_me(self):
+        r = super().get_me()
+        r.wait()
+        if not r.update:
+            return 0
+        return r.update.get("id", 0)
+
+    def get_user(self, user_id: int):
+        r = super().get_user(user_id)
+        r.wait()
+        if not r.update:
+            return {}
+        return r.update
+
     def get_chats(self):
         r = super().get_chats()
         r.wait()
@@ -49,4 +63,6 @@ class Client(Telegram):
         r.wait()
         if not r.update:
             return []
-        return r.update.get("messages", [])
+        messages = r.update.get("messages", [])
+        messages.reverse()
+        return messages

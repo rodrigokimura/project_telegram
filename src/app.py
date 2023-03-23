@@ -1,60 +1,18 @@
+from sys import exception
 from typing import Type
 
 from dotenv import load_dotenv
+from rich.console import _is_jupyter
 from textual import log
 from textual.app import App, ComposeResult, CSSPathType
-from textual.containers import Container, Horizontal, VerticalScroll
+from textual.containers import Horizontal
+from textual.css.query import NoMatches
 from textual.driver import Driver
-from textual.message import Message as _Message
-from textual.widgets import Footer, Header, Static
+from textual.widgets import Footer, Header
 
 from client import Client
 from utils import notify
-
-
-class ChatListPane(VerticalScroll):
-    def __init__(self, tg: Client, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.tg = tg
-
-    def compose(self) -> ComposeResult:
-        for chat in self.tg.get_chats():
-            yield ChatListItem(self.tg, chat.get("id"), chat.get("title"))
-
-
-class ChatListItem(Static):
-    class Selected(_Message):
-        def __init__(self, chat_id: int) -> None:
-            self.chat_id = chat_id
-            super().__init__()
-
-    def __init__(self, tg: Client, chat_id: int, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.tg = tg
-        self.chat_id = chat_id
-
-    def on_click(self):
-        notify("Loading chat", f"chat id: {self.chat_id}")
-        self.post_message(self.Selected(self.chat_id))
-
-
-class ChatPane(VerticalScroll):
-    def __init__(self, tg: Client, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.tg = tg
-
-
-class Message(Static):
-    pass
-
-
-class MainPane(Container):
-    def __init__(self, tg: Client, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.tg = tg
-
-    def compose(self) -> ComposeResult:
-        yield ChatPane(id="chat-pane", tg=self.tg)
+from widgets import ChatListItem, ChatListPane, ChatPane, MainPane, Message
 
 
 class TelegramClient(App):
@@ -72,6 +30,8 @@ class TelegramClient(App):
         self.tg = Client()
         self.tg.login()
         self.tg.add_message_handler(self.new_message_handler)
+        self.current_chat_id = 0
+        self.me = self.tg.get_me()
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -83,12 +43,26 @@ class TelegramClient(App):
 
     def on_chat_list_item_selected(self, message: ChatListItem.Selected):
         self.query(Message).remove()
-        chat_pane = self.query_one(ChatPane)
-        r = self.tg.get_chat_history(message.chat_id)
-        for m in r:
-            chat_pane.mount(
-                Message(m.get("content", {}).get("text", {}).get("text", ""))
+        if message.chat_id != self.current_chat_id:
+            try:
+                item = (
+                    self.query(ChatListItem)
+                    .filter(f"#chat_id__{self.current_chat_id}")
+                    .first()
+                )
+                item.remove_class("currentchat")
+            except NoMatches:
+                pass
+            self.current_chat_id = message.chat_id
+            item = (
+                self.query(ChatListItem)
+                .filter(f"#chat_id__{self.current_chat_id}")
+                .first()
             )
+            item.add_class("currentchat")
+
+        chat_pane = self.query_one(ChatPane)
+        chat_pane.load_messages(message.chat_id, self.me)
 
     def action_toggle_dark(self) -> None:
         """An action to toggle dark mode."""
@@ -99,13 +73,7 @@ class TelegramClient(App):
         message_content = update["message"]["content"].get("text", {})
         user_id = update["message"]["sender_id"].get("user_id", 0)
         r = self.tg.get_user(user_id)
-        r.wait()
-
-        if not r.update:
-            return
-
-        name = f"{r.update.get('first_name')} {r.update.get('last_name')}"
-
+        name = f"{r.get('first_name')} {r.get('last_name')}"
         message_text = message_content.get("text", "")
         notify(f"From: {name}", message_text)
 
