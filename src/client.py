@@ -1,5 +1,4 @@
 import os
-from typing import Dict, Optional, Union
 
 from telegram.client import AuthorizationState, Telegram
 
@@ -27,3 +26,27 @@ class Client(Telegram):
             password = input("Password: ")
             super().send_password(password)
             state = super().login(blocking=False)
+
+    def get_chats(self):
+        r = super().get_chats()
+        r.wait()
+        if not r.update:
+            return []
+        response = []
+        chat_ids = r.update.get("chat_ids", [])
+        for chat_id in chat_ids:
+            r = super().get_chat(chat_id)
+            r.wait()
+            if not r.update:
+                continue
+            title = r.update.get("title")
+            id = r.update.get("id")
+            response.append({"id": id, "title": title})
+        return response
+
+    def get_chat_history(self, chat_id: int):
+        r = super().get_chat_history(chat_id)
+        r.wait()
+        if not r.update:
+            return []
+        return r.update.get("messages", [])
