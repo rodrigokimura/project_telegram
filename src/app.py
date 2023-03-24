@@ -1,15 +1,14 @@
 from typing import Type
 
 from dotenv import load_dotenv
-from textual import log
 from textual.app import App, ComposeResult, CSSPathType
 from textual.containers import Horizontal
 from textual.driver import Driver
-from textual.widgets import Footer, Header, TextLog
+from textual.widgets import Footer, Header
 
 from client import Client
 from utils import notify
-from widgets import ChatListView, DetailsPane, MainPane, MessageInput, MessageListView
+from widgets import ChatListView, DetailsPane, MainPane, MessageInput
 
 
 class TelegramClient(App):
@@ -47,9 +46,6 @@ class TelegramClient(App):
         main_pane = self.query_one(MainPane)
         await main_pane.load_messages(message.item.chat_id)
 
-    async def on_message_list_view_highlighted(self, message: MessageListView.Selected):
-        self.details_pane.hide()
-
     async def on_message_input_submitted(self, message: MessageInput.Submitted):
         if not self.current_chat_id:
             notify("Info", "No chat selected")
@@ -61,7 +57,6 @@ class TelegramClient(App):
         self.dark = not self.dark
 
     def new_message_handler(self, update):
-        log(update.get("message"))
         message_content = update["message"]["content"].get("text", {})
         user_id = update["message"]["sender_id"].get("user_id", 0)
         r = self.tg.get_user(user_id)

@@ -8,9 +8,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Container
 from textual.message import Message as _Message
-from textual.reactive import reactive
-from textual.widget import Widget
-from textual.widgets import Header, Input, Label, ListItem, ListView, Static, TextLog
+from textual.widgets import Input, Label, ListItem, ListView, Static, TextLog
 
 from client import Client
 

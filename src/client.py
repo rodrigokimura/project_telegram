@@ -1,8 +1,6 @@
 import os
 
-from _pytest.reports import _report_to_json
 from telegram.client import AuthorizationState, Telegram
-from textual import log
 
 
 class Client(Telegram):
@@ -77,7 +75,6 @@ class Client(Telegram):
         return messages
 
     def send_message(self, chat_id: int, text: str):
-        log(chat_id)
         r = super().send_message(chat_id, text)
         r.wait()
         if not r.update:
