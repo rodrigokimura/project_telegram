@@ -1,6 +1,8 @@
 import os
 
+from _pytest.reports import _report_to_json
 from telegram.client import AuthorizationState, Telegram
+from textual import log
 
 
 class Client(Telegram):
@@ -41,6 +43,13 @@ class Client(Telegram):
             return {}
         return r.update
 
+    def get_chat(self, chat_id: int):
+        r = super().get_chat(chat_id)
+        r.wait()
+        if not r.update:
+            return {}
+        return r.update
+
     def get_chats(self):
         r = super().get_chats()
         r.wait()
@@ -66,3 +75,11 @@ class Client(Telegram):
         messages = r.update.get("messages", [])
         messages.reverse()
         return messages
+
+    def send_message(self, chat_id: int, text: str):
+        log(chat_id)
+        r = super().send_message(chat_id, text)
+        r.wait()
+        if not r.update:
+            return "no update"
+        return r

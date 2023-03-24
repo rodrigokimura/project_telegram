@@ -1,10 +1,15 @@
 ChatListView {
   dock: left;
-  width: 30;
+  width: 20;
   height: 100%;
 }
-.currentchat {
-  background: dodgerblue;
+
+ChatHeader {
+  width: 100%;
+  padding: 1;
+  text-align: center;
+  text-style: bold;
+  background: $primary;
 }
 
 ChatPane {
@@ -16,7 +21,6 @@ Input {
 }
 
 Message {
-  /* layout: horizontal; */
   align-horizontal: left;
 }
 
@@ -35,4 +39,8 @@ Message Static.content {
 Message.author-me Static.content {
   border: gray;
   border-title-align: right;
+}
+
+MessageInput {
+  padding: 1;
 }

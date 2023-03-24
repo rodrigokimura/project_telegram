@@ -9,7 +9,7 @@ from textual.widgets import Footer, Header
 
 from client import Client
 from utils import notify
-from widgets import ChatListView, ChatPane, MainPane
+from widgets import ChatListView, ChatPane, MainPane, MessageInput
 
 
 class TelegramClient(App):
@@ -34,13 +34,23 @@ class TelegramClient(App):
         """Create child widgets for the app."""
         yield Header()
         with Horizontal(id="app-grid"):
-            yield ChatListView(self.tg, id="chat-list-pane")
+            chat_list_pane = ChatListView(self.tg, id="chat-list-pane")
+            yield chat_list_pane
             yield MainPane(id="main-pane", tg=self.tg)
         yield Footer()
+        chat_list_pane.focus()
 
-    def on_chat_list_view_selected(self, message: ChatListView.Selected):
-        chat_pane = self.query_one(ChatPane)
-        chat_pane.load_messages(message.item.chat_id, self.me)
+    async def on_chat_list_view_selected(self, message: ChatListView.Selected):
+        self.current_chat_id = message.item.chat_id
+        main_pane = self.query_one(MainPane)
+        await main_pane.load_messages(message.item.chat_id, self.me)
+        main_pane.focus()
+
+    async def on_message_input_submitted(self, message: MessageInput.Submitted):
+        if not self.current_chat_id:
+            notify("Info", "No chat selected")
+            return
+        self.tg.send_message(self.current_chat_id, message.value)
 
     def action_toggledark(self) -> None:
         """An action to toggle dark mode."""
