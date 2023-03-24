@@ -4,6 +4,10 @@ ChatListView {
   height: 100%;
 }
 
+MainPane {
+  overflow: auto hidden;
+}
+
 ChatHeader {
   width: 100%;
   padding: 1;
@@ -12,12 +16,8 @@ ChatHeader {
   background: $primary;
 }
 
-ChatPane {
+MessageListView {
   height: 10fr;
-}
-
-Input {
-  height: 1fr;
 }
 
 Message {
@@ -43,4 +43,11 @@ Message.author-me Static.content {
 
 MessageInput {
   padding: 1;
+  height: 1fr;
+}
+
+DetailsPane {
+  dock: right;
+  width: 60;
+  display: none;
 }

@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import ClassVar, List
 
 from rich.console import RenderableType
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Container
 from textual.message import Message as _Message
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Header, Input, Label, ListItem, ListView, Static
+from textual.widgets import Header, Input, Label, ListItem, ListView, Static, TextLog
 
 from client import Client
 
@@ -56,11 +57,33 @@ class ChatListView(ListView):
             )
         super().__init__(*items, **kwargs)
 
-    def action_select_right(self):
-        chat_pane = self.app.query_one(ChatPane)
-        if chat_pane.index is None:
-            chat_pane.index = 0
-        chat_pane.focus()
+    @property
+    def highlighted_child(self) -> ChatListItem | None:
+        if self.index is not None and 0 <= self.index < len(self._nodes):
+            list_item = self._nodes[self.index]
+            assert isinstance(list_item, ChatListItem)
+            return list_item
+
+    async def action_select_right(self):
+        self.collapse()
+        main_pane = self.app.query_one(MainPane)
+        main_pane.chat_pane.focus()
+
+    def collapse(self):
+        self.display = False
+
+    def expand(self):
+        self.display = True
+
+    def _on_focus(self, event: events.Focus) -> None:
+        r = super()._on_focus(event)
+        self.expand()
+        return r
+
+    def _on_blur(self, event: events.Blur) -> None:
+        r = super()._on_blur(event)
+        self.collapse()
+        return r
 
 
 class ChatHeader(Label):
@@ -68,19 +91,39 @@ class ChatHeader(Label):
         return super().update(renderable)
 
 
-class ChatPane(ListView):
+class MessageListView(ListView):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("enter", "select_cursor", "Select", show=False),
         Binding("k", "cursor_up", "Cursor Up", show=False),
         Binding("j", "cursor_down", "Cursor Down", show=False),
         Binding("h", "select_left", "Cursor Left", show=False),
+        Binding("l", "select_right", "Show details", show=True),
         Binding("i", "enter_input_mode", "Enter input mode", show=True),
     ]
+
+    class Highlighted(_Message, bubble=True):
+        def __init__(self, list_view: MessageListView, item: Message) -> None:
+            super().__init__()
+            self.list_view = list_view
+            self.item: Message = item
+
+    class Selected(_Message, bubble=True):
+        def __init__(self, list_view: MessageListView, item: Message) -> None:
+            super().__init__()
+            self.list_view = list_view
+            self.item: Message = item
 
     def __init__(self, tg: Client, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.tg = tg
         self.messages_ids = set()
+
+    @property
+    def highlighted_child(self) -> Message | None:
+        if self.index is not None and 0 <= self.index < len(self._nodes):
+            list_item = self._nodes[self.index]
+            assert isinstance(list_item, Message)
+            return list_item
 
     def action_select_left(self):
         self.app.query_one(ChatListView).focus()
@@ -88,7 +131,16 @@ class ChatPane(ListView):
     def action_enter_input_mode(self):
         self.app.query_one(MessageInput).focus()
 
-    async def load_messages(self, chat_id: int, me: int):
+    def action_select_right(self):
+        details_pane = self.app.query_one(DetailsPane)
+        details_pane.clear()
+        item = self.highlighted_child
+        if item is not None:
+            details_pane.write(item.msg)
+        details_pane.focus()
+
+    async def load_messages(self, chat_id: int):
+        me = self.tg.get_me()
         r = self.tg.get_chat_history(chat_id)
         message_ids = set(m.get("id", 0) for m in r)
         if self.messages_ids == message_ids:
@@ -121,6 +173,16 @@ class Message(ListItem):
             self.add_class("author-me")
         author = self.tg.get_user(author_id)
         s.border_title = f"{author.get('first_name')} {author.get('last_name')}"
+
+        reactions = self.msg.get("interaction_info", {}).get("reactions", [])
+        sub = ""
+        for r in reactions:
+            sub += r.get("reaction", "")
+            c = r.get("total_count", 1)
+            if c > 1:
+                sub += f": {c}"
+            sub += " "
+        s.border_subtitle = sub.strip()
         yield s
 
 
@@ -136,12 +198,38 @@ class MessageInput(Input):
             self.value: str = value
 
     def action_leave_input_mode(self):
-        self.app.query_one(ChatPane).focus()
+        self.app.query_one(MessageListView).focus()
 
     async def action_submit(self) -> None:
         self.post_message(self.Submitted(self, self.value))
         self.app.bell()
         self.value = ""
+
+
+class DetailsPane(TextLog):
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("h", "select_left", "Leave", show=True),
+        Binding("escape", "select_left", "Leave", show=True),
+    ]
+
+    def hide(self):
+        self.display = False
+
+    def show(self):
+        self.display = True
+
+    def _on_focus(self, event: events.Focus) -> None:
+        r = super()._on_focus(event)
+        self.show()
+        return r
+
+    def _on_blur(self, event: events.Blur) -> None:
+        r = super()._on_blur(event)
+        self.hide()
+        return r
+
+    def action_select_left(self):
+        self.app.query_one(MessageListView).focus()
 
 
 class MainPane(Container):
@@ -151,15 +239,14 @@ class MainPane(Container):
 
     def compose(self) -> ComposeResult:
         self.header = ChatHeader("No chat selected")
-        self.chat_pane = ChatPane(id="chat-pane", tg=self.tg)
+        self.chat_pane = MessageListView(id="chat-pane", tg=self.tg)
         self.message_input = MessageInput()
         yield self.header
         yield self.chat_pane
         yield self.message_input
 
-    async def load_messages(self, chat_id: int, me: int):
-        await self.chat_pane.load_messages(chat_id, me)
-        self.chat_pane.focus()
+    async def load_messages(self, chat_id: int):
+        await self.chat_pane.load_messages(chat_id)
         self.message_input.value = ""
         title = self.tg.get_chat(chat_id).get("title", "")
         self.header.update(title)

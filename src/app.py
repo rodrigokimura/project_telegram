@@ -5,11 +5,11 @@ from textual import log
 from textual.app import App, ComposeResult, CSSPathType
 from textual.containers import Horizontal
 from textual.driver import Driver
-from textual.widgets import Footer, Header
+from textual.widgets import Footer, Header, TextLog
 
 from client import Client
 from utils import notify
-from widgets import ChatListView, ChatPane, MainPane, MessageInput
+from widgets import ChatListView, DetailsPane, MainPane, MessageInput, MessageListView
 
 
 class TelegramClient(App):
@@ -34,17 +34,21 @@ class TelegramClient(App):
         """Create child widgets for the app."""
         yield Header()
         with Horizontal(id="app-grid"):
-            chat_list_pane = ChatListView(self.tg, id="chat-list-pane")
-            yield chat_list_pane
+            self.chat_list_view = ChatListView(self.tg, id="chat-list-pane")
+            self.details_pane = DetailsPane()
+            yield self.chat_list_view
             yield MainPane(id="main-pane", tg=self.tg)
+            yield self.details_pane
         yield Footer()
-        chat_list_pane.focus()
+        self.chat_list_view.focus()
 
-    async def on_chat_list_view_selected(self, message: ChatListView.Selected):
+    async def on_chat_list_view_highlighted(self, message: ChatListView.Selected):
         self.current_chat_id = message.item.chat_id
         main_pane = self.query_one(MainPane)
-        await main_pane.load_messages(message.item.chat_id, self.me)
-        main_pane.focus()
+        await main_pane.load_messages(message.item.chat_id)
+
+    async def on_message_list_view_highlighted(self, message: MessageListView.Selected):
+        self.details_pane.hide()
 
     async def on_message_input_submitted(self, message: MessageInput.Submitted):
         if not self.current_chat_id:
