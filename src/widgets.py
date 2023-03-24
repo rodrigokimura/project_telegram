@@ -1,53 +1,78 @@
+from __future__ import annotations
+
+from typing import ClassVar, List
+
+from textual import log
 from textual.app import ComposeResult
+from textual.binding import Binding, BindingType
 from textual.containers import Container, VerticalScroll
 from textual.message import Message as _Message
-from textual.widgets import Input, Static
+from textual.widgets import Input, Label, ListItem, ListView, Static
 
 from client import Client
-from utils import notify
 
 
-class ChatListPane(VerticalScroll):
-    def __init__(self, tg: Client, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.tg = tg
-
-    def compose(self) -> ComposeResult:
-        for chat in self.tg.get_chats():
-            yield ChatListItem(
-                self.tg,
-                chat.get("id"),
-                chat.get("title"),
-                id=f"chat_id__{chat.get('id')}",
-            )
-
-
-class ChatListItem(Static):
-    class Selected(_Message):
-        def __init__(self, chat_id: int) -> None:
-            self.chat_id = chat_id
-            super().__init__()
-
+class ChatListItem(ListItem):
     def __init__(self, tg: Client, chat_id: int, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.tg = tg
         self.chat_id = chat_id
 
-    def on_click(self):
-        notify("Loading chat", f"chat id: {self.chat_id}")
-        self.post_message(self.Selected(self.chat_id))
+
+class ChatListView(ListView):
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("enter", "select_cursor", "Select", show=False),
+        Binding("k", "cursor_up", "Cursor Up", show=False),
+        Binding("j", "cursor_down", "Cursor Down", show=False),
+    ]
+
+    class Highlighted(_Message, bubble=True):
+        def __init__(self, list_view: ChatListView, item: ChatListItem | None) -> None:
+            super().__init__()
+            self.list_view = list_view
+            self.item: ChatListItem | None = item
+
+    class Selected(_Message, bubble=True):
+        def __init__(self, list_view: ChatListView, item: ChatListItem) -> None:
+            super().__init__()
+            self.list_view = list_view
+            self.item: ChatListItem = item
+
+    def __init__(self, tg: Client, **kwargs) -> None:
+        self.tg = tg
+
+        items: List[ChatListItem] = []
+        for chat in self.tg.get_chats():
+            items.append(
+                ChatListItem(
+                    self.tg,
+                    chat.get("id"),
+                    Label(chat.get("title")),
+                    id=f"chat_id__{chat.get('id')}",
+                )
+            )
+        super().__init__(*items, **kwargs)
 
 
 class ChatPane(VerticalScroll):
     def __init__(self, tg: Client, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.tg = tg
+        self.messages_ids = set()
 
     def load_messages(self, chat_id: int, me: int):
         r = self.tg.get_chat_history(chat_id)
+        message_ids = set(m.get("id", 0) for m in r)
+        if self.messages_ids == message_ids:
+            return
+        self.messages_ids = message_ids
+
+        self.query(Message).remove()
         for m in r:
+            log(m)
             self.mount(Message(self.tg, m, me))
-        # self.scroll_end(animate=False)
+        self.scroll_end(animate=False)
+        # self.refresh()
 
 
 class Message(Static):

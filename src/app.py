@@ -1,18 +1,15 @@
-from sys import exception
 from typing import Type
 
 from dotenv import load_dotenv
-from rich.console import _is_jupyter
 from textual import log
 from textual.app import App, ComposeResult, CSSPathType
 from textual.containers import Horizontal
-from textual.css.query import NoMatches
 from textual.driver import Driver
 from textual.widgets import Footer, Header
 
 from client import Client
 from utils import notify
-from widgets import ChatListItem, ChatListPane, ChatPane, MainPane, Message
+from widgets import ChatListView, ChatPane, MainPane
 
 
 class TelegramClient(App):
@@ -37,34 +34,15 @@ class TelegramClient(App):
         """Create child widgets for the app."""
         yield Header()
         with Horizontal(id="app-grid"):
-            yield ChatListPane(id="chats-pane", tg=self.tg)
+            yield ChatListView(self.tg, id="chat-list-pane")
             yield MainPane(id="main-pane", tg=self.tg)
         yield Footer()
 
-    def on_chat_list_item_selected(self, message: ChatListItem.Selected):
-        self.query(Message).remove()
-        if message.chat_id != self.current_chat_id:
-            try:
-                item = (
-                    self.query(ChatListItem)
-                    .filter(f"#chat_id__{self.current_chat_id}")
-                    .first()
-                )
-                item.remove_class("currentchat")
-            except NoMatches:
-                pass
-            self.current_chat_id = message.chat_id
-            item = (
-                self.query(ChatListItem)
-                .filter(f"#chat_id__{self.current_chat_id}")
-                .first()
-            )
-            item.add_class("currentchat")
-
+    def on_chat_list_view_selected(self, message: ChatListView.Selected):
         chat_pane = self.query_one(ChatPane)
-        chat_pane.load_messages(message.chat_id, self.me)
+        chat_pane.load_messages(message.item.chat_id, self.me)
 
-    def action_toggle_dark(self) -> None:
+    def action_toggledark(self) -> None:
         """An action to toggle dark mode."""
         self.dark = not self.dark
 
