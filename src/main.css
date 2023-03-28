@@ -1,7 +1,51 @@
+$base00: #1F1F28;
+$base01: #2A2A37;
+$base02: #223249;
+$base03: #727169;
+$base04: #C8C093;
+$base05: #DCD7BA;
+$base06: #938AA9;
+$base07: #363646;
+$base08: #C34043;
+$base09: #FFA066;
+$base0A: #DCA561;
+$base0B: #98BB6C;
+$base0C: #7FB4CA;
+$base0D: #7E9CD8;
+$base0E: #957FB8;
+$base0F: #D27E99;
+
 ChatListView {
   dock: left;
   width: 20;
   height: 100%;
+  color: $base05;
+}
+
+ChatListView > ListItem {
+  color: $base05;
+}
+
+ChatListView > ListItem.--highlight {
+  background: $base09 50%;
+  color: $base00;
+}
+
+ChatListView:focus > ListItem.--highlight {
+  background: $base09;
+}
+
+MessageListView > ListItem {
+  color: $base05;
+}
+
+MessageListView > ListItem.--highlight {
+  background: $base0C 10%;
+  color: $base05;
+}
+
+MessageListView:focus > ListItem.--highlight {
+  background: $base0C 10%;
 }
 
 MainPane {
@@ -13,31 +57,32 @@ ChatHeader {
   padding: 1;
   text-align: center;
   text-style: bold;
-  background: $primary;
+  background: $base0D;
 }
 
 MessageListView {
   height: 10fr;
 }
 
-Message {
+MessageItem {
   align-horizontal: left;
+  padding: 0 1;
 }
 
-Message.author-me {
+MessageItem.author-me {
   align-horizontal: right;
 }
 
-Message Static.content {
+MessageItem Static.content {
   width: auto;
   min-width: 10;
-  max-width: 60%;
-  border: dodgerblue;
+  max-width: 80%;
+  border: $base0D;
   border-title-align: left;
 }
 
-Message.author-me Static.content {
-  border: gray;
+MessageItem.author-me Static.content {
+  border: $base03;
   border-title-align: right;
 }
 

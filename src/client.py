@@ -2,6 +2,8 @@ import os
 
 from telegram.client import AuthorizationState, Telegram
 
+from models import Chat, Message, User
+
 
 class Client(Telegram):
     def __init__(self) -> None:
@@ -34,36 +36,28 @@ class Client(Telegram):
             return 0
         return r.update.get("id", 0)
 
-    def get_user(self, user_id: int):
+    def get_user(self, user_id: int) -> User:
         r = super().get_user(user_id)
         r.wait()
         if not r.update:
-            return {}
-        return r.update
+            raise User.NotFound
+        return User(**r.update)
 
     def get_chat(self, chat_id: int):
         r = super().get_chat(chat_id)
         r.wait()
         if not r.update:
-            return {}
-        return r.update
+            raise Chat.NotFound
+        return Chat(**r.update)
 
     def get_chats(self):
         r = super().get_chats()
         r.wait()
         if not r.update:
-            return []
-        response = []
+            raise Chat.NotFound
         chat_ids = r.update.get("chat_ids", [])
         for chat_id in chat_ids:
-            r = super().get_chat(chat_id)
-            r.wait()
-            if not r.update:
-                continue
-            title = r.update.get("title")
-            id = r.update.get("id")
-            response.append({"id": id, "title": title})
-        return response
+            yield self.get_chat(chat_id)
 
     def get_chat_history(self, chat_id: int):
         r = super().get_chat_history(chat_id)
@@ -72,7 +66,7 @@ class Client(Telegram):
             return []
         messages = r.update.get("messages", [])
         messages.reverse()
-        return messages
+        return [Message(**m) for m in messages]
 
     def send_message(self, chat_id: int, text: str):
         r = super().send_message(chat_id, text)

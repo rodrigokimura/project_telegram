@@ -11,6 +11,7 @@ from textual.message import Message as _Message
 from textual.widgets import Input, Label, ListItem, ListView, Static, TextLog
 
 from client import Client
+from models import Message
 
 
 class ChatListItem(ListItem):
@@ -48,9 +49,9 @@ class ChatListView(ListView):
             items.append(
                 ChatListItem(
                     self.tg,
-                    chat.get("id"),
-                    Label(chat.get("title")),
-                    id=f"chat_id__{chat.get('id')}",
+                    chat.id,
+                    Label(chat.title),
+                    id=f"chat_id__{chat.id}",
                 )
             )
         super().__init__(*items, **kwargs)
@@ -100,16 +101,16 @@ class MessageListView(ListView):
     ]
 
     class Highlighted(_Message, bubble=True):
-        def __init__(self, list_view: MessageListView, item: Message) -> None:
+        def __init__(self, list_view: MessageListView, item: MessageItem) -> None:
             super().__init__()
             self.list_view = list_view
-            self.item: Message = item
+            self.item: MessageItem = item
 
     class Selected(_Message, bubble=True):
-        def __init__(self, list_view: MessageListView, item: Message) -> None:
+        def __init__(self, list_view: MessageListView, item: MessageItem) -> None:
             super().__init__()
             self.list_view = list_view
-            self.item: Message = item
+            self.item: MessageItem = item
 
     def __init__(self, tg: Client, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -117,10 +118,10 @@ class MessageListView(ListView):
         self.messages_ids = set()
 
     @property
-    def highlighted_child(self) -> Message | None:
+    def highlighted_child(self) -> MessageItem | None:
         if self.index is not None and 0 <= self.index < len(self._nodes):
             list_item = self._nodes[self.index]
-            assert isinstance(list_item, Message)
+            assert isinstance(list_item, MessageItem)
             return list_item
 
     def action_select_left(self):
@@ -139,14 +140,14 @@ class MessageListView(ListView):
 
     async def load_messages(self, chat_id: int):
         me = self.tg.get_me()
-        r = self.tg.get_chat_history(chat_id)
-        message_ids = set(m.get("id", 0) for m in r)
+        messages = self.tg.get_chat_history(chat_id)
+        message_ids = set(m.id for m in messages)
         if self.messages_ids == message_ids:
             return
         self.messages_ids = message_ids
         self.clear()
 
-        await self.mount_all(Message(self.tg, m, me) for m in r)
+        await self.mount_all(MessageItem(self.tg, m, me) for m in messages)
         self.index = len(self.children)
 
     def on_mount(self) -> None:
@@ -155,32 +156,34 @@ class MessageListView(ListView):
         return r
 
 
-class Message(ListItem):
-    def __init__(self, tg: Client, msg: dict, me: int, *args, **kwargs) -> None:
+class MessageItem(ListItem):
+    def __init__(self, tg: Client, msg: Message, me: int, *args, **kwargs) -> None:
         self.tg = tg
         self.me = me
         self.msg = msg
         super().__init__(*args, **kwargs)
 
     def compose(self) -> ComposeResult:
-        msg_text = self.msg.get("content", {}).get("text", {}).get("text", "")
+        msg_text = self.msg.renderable_text
         s = Static(msg_text, classes="content")
-        author_id = self.msg.get("sender_id", {}).get("user_id", 0)
+        author_id = self.msg.sender_id.user_id
         is_author_me = author_id == self.me
         if is_author_me:
             self.add_class("author-me")
         author = self.tg.get_user(author_id)
-        s.border_title = f"{author.get('first_name')} {author.get('last_name')}"
 
-        reactions = self.msg.get("interaction_info", {}).get("reactions", [])
-        sub = ""
-        for r in reactions:
-            sub += r.get("reaction", "")
-            c = r.get("total_count", 1)
-            if c > 1:
-                sub += f": {c}"
-            sub += " "
-        s.border_subtitle = sub.strip()
+        s.border_title = author.full_name
+
+        if self.msg.interaction_info:
+            reactions = self.msg.interaction_info.reactions
+            sub = ""
+            for r in reactions:
+                sub += r.reaction
+                c = r.total_count
+                if c > 1:
+                    sub += f": {c}"
+                sub += " "
+            s.border_subtitle = sub.strip()
         yield s
 
 
@@ -246,5 +249,5 @@ class MainPane(Container):
     async def load_messages(self, chat_id: int):
         await self.chat_pane.load_messages(chat_id)
         self.message_input.value = ""
-        title = self.tg.get_chat(chat_id).get("title", "")
+        title = self.tg.get_chat(chat_id).title
         self.header.update(title)

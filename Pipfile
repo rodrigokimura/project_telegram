@@ -8,6 +8,7 @@ python-telegram = "*"
 python-dotenv = "*"
 pytest = "*"
 textual = {extras = ["dev"], version = "*"}
+pydantic = "*"
 
 [dev-packages]
 black = "*"

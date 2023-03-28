@@ -22,7 +22,6 @@ class TelegramClient(App):
         watch_css: bool = False,
     ):
         super().__init__(driver_class, css_path, watch_css)
-
         self.tg = Client()
         self.tg.login()
         self.tg.add_message_handler(self.new_message_handler)
@@ -59,10 +58,9 @@ class TelegramClient(App):
     def new_message_handler(self, update):
         message_content = update["message"]["content"].get("text", {})
         user_id = update["message"]["sender_id"].get("user_id", 0)
-        r = self.tg.get_user(user_id)
-        name = f"{r.get('first_name')} {r.get('last_name')}"
+        user = self.tg.get_user(user_id)
         message_text = message_content.get("text", "")
-        notify(f"From: {name}", message_text)
+        notify(f"From: {user.full_name}", message_text)
 
 
 if __name__ == "__main__":
