@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import io
-import os
 import subprocess
 from typing import ClassVar, List
 
@@ -13,10 +12,9 @@ from rich.console import RenderableType
 from rich.segment import Segment
 from rich.style import Style
 from textual import events
-from textual.app import ComposeResult, log
+from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Container
-from textual.geometry import Size
 from textual.message import Message as _Message
 from textual.strip import Strip
 from textual.widget import Widget
@@ -216,14 +214,8 @@ class MessageItem(ListItem):
 
     def action_select_item(self):
         if isinstance(self.msg.content, HasImage):
-            data = self.msg.content.image_data
-            data = base64.decodebytes(data)
-            image = Image.open(io.BytesIO(data)).convert("RGB")
-            filename = os.path.join(os.getcwd(), "temp.jpeg")
-            image.save(filename)
-            r = self.tg.download_file(self.msg.content.photo.sizes[-1].photo.id)
-            log(r)
-            subprocess.Popen(["kitten", "icat", r.local.path])
+            file = self.tg.download_file(self.msg.content.photo.sizes[-1].photo.id)
+            subprocess.Popen(["kitten", "icat", file.local.path])
 
     def action_deselect_item(self):
         if isinstance(self.msg.content, HasImage):

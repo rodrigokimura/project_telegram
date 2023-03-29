@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, List, Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel as _BaseModel
 from pydantic import Field
-from pydantic.class_validators import inherit_validators
 
 
 class BaseModel(_BaseModel):
