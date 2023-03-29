@@ -1,17 +1,29 @@
 from __future__ import annotations
 
+import base64
+import io
+import os
+import subprocess
 from typing import ClassVar, List
 
+from PIL import Image
+from rich.color import Color
+from rich.color_triplet import ColorTriplet
 from rich.console import RenderableType
+from rich.segment import Segment
+from rich.style import Style
 from textual import events
-from textual.app import ComposeResult
+from textual.app import ComposeResult, log
 from textual.binding import Binding, BindingType
 from textual.containers import Container
+from textual.geometry import Size
 from textual.message import Message as _Message
+from textual.strip import Strip
+from textual.widget import Widget
 from textual.widgets import Input, Label, ListItem, ListView, Static, TextLog
 
 from client import Client
-from models import Message
+from models import HasImage, Message
 
 
 class ChatListItem(ListItem):
@@ -92,7 +104,8 @@ class ChatHeader(Label):
 
 class MessageListView(ListView):
     BINDINGS: ClassVar[list[BindingType]] = [
-        Binding("enter", "select_cursor", "Select", show=False),
+        Binding("enter", "select_item", "Select item", show=False),
+        Binding("escape", "deselect_item", "Deselect item", show=False),
         Binding("k", "cursor_up", "Cursor Up", show=False),
         Binding("j", "cursor_down", "Cursor Down", show=False),
         Binding("h", "select_left", "Cursor Left", show=False),
@@ -138,6 +151,16 @@ class MessageListView(ListView):
             details_pane.write(item.msg)
         details_pane.focus()
 
+    def action_select_item(self) -> None:
+        item = self.highlighted_child
+        if item is not None:
+            item.action_select_item()
+
+    def action_deselect_item(self) -> None:
+        item = self.highlighted_child
+        if item is not None:
+            item.action_deselect_item()
+
     async def load_messages(self, chat_id: int):
         me = self.tg.get_me()
         messages = self.tg.get_chat_history(chat_id)
@@ -165,7 +188,12 @@ class MessageItem(ListItem):
 
     def compose(self) -> ComposeResult:
         msg_text = self.msg.renderable_text
-        s = Static(msg_text, classes="content")
+
+        if isinstance(self.msg.content, HasImage):
+            s = ImagePreview(self.msg.content.image_data, classes="content")
+        else:
+            s = Static(msg_text, classes="content")
+
         author_id = self.msg.sender_id.user_id
         is_author_me = author_id == self.me
         if is_author_me:
@@ -185,6 +213,22 @@ class MessageItem(ListItem):
                 sub += " "
             s.border_subtitle = sub.strip()
         yield s
+
+    def action_select_item(self):
+        if isinstance(self.msg.content, HasImage):
+            data = self.msg.content.image_data
+            data = base64.decodebytes(data)
+            image = Image.open(io.BytesIO(data)).convert("RGB")
+            filename = os.path.join(os.getcwd(), "temp.jpeg")
+            image.save(filename)
+            r = self.tg.download_file(self.msg.content.photo.sizes[-1].photo.id)
+            log(r)
+            subprocess.Popen(["kitten", "icat", r.local.path])
+
+    def action_deselect_item(self):
+        if isinstance(self.msg.content, HasImage):
+            subprocess.Popen(["kitten", "icat", "--clear"])
+            self.app.refresh()
 
 
 class MessageInput(Input):
@@ -251,3 +295,31 @@ class MainPane(Container):
         self.message_input.value = ""
         title = self.tg.get_chat(chat_id).title
         self.header.update(title)
+
+
+class ImagePreview(Widget):
+    def __init__(self, data: bytes, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        data = base64.decodebytes(data)
+        image = Image.open(io.BytesIO(data)).convert("RGB")
+
+        self.width = 32
+        self.height = int(image.height / (image.width / self.width)) // 2
+
+        self.image = image.resize((self.width, self.height))
+
+        self.styles.width = self.width
+        self.styles.height = self.height
+
+    def render_line(self, y: int) -> Strip:
+        full_block = "█"
+        return Strip(
+            Segment(
+                full_block,
+                Style(
+                    color=Color.from_triplet(ColorTriplet(*self.image.getpixel((x, y))))
+                ),
+            )
+            for x in range(self.width)
+        )

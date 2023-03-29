@@ -1,8 +1,9 @@
 import os
+from typing import Any, Dict
 
 from telegram.client import AuthorizationState, Telegram
 
-from models import Chat, Message, User
+from models import Chat, File, Message, User
 
 
 class Client(Telegram):
@@ -28,6 +29,23 @@ class Client(Telegram):
             password = input("Password: ")
             super().send_password(password)
             state = super().login(blocking=False)
+
+    def download_file(self, file_id: int):
+        r = super().call_method(
+            "downloadFile",
+            {
+                "file_id": file_id,
+                "priority": 32,
+                "offset": 0,
+                "limit": 0,
+                "synchronous": True,
+            },
+            block=True,
+        )
+        if r.update is None:
+            raise ValueError("No download response")
+        result: Dict[Any, Any] = r.update
+        return File(**result)
 
     def get_me(self):
         r = super().get_me()

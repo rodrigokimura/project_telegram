@@ -81,7 +81,13 @@ MessageItem Static.content {
   border-title-align: left;
 }
 
-MessageItem.author-me Static.content {
+MessageItem ImagePreview.content {
+  width: auto;
+  border: $base0D;
+  border-title-align: left;
+}
+
+MessageItem.author-me Widget.content {
   border: $base03;
   border-title-align: right;
 }

@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel as _BaseModel
 from pydantic import Field
+from pydantic.class_validators import inherit_validators
 
 
 class BaseModel(_BaseModel):
@@ -54,6 +56,15 @@ class MessageContent(ABC):
     @property
     @abstractmethod
     def renderable_text(self):
+        pass
+
+
+class HasImage(ABC):
+    has_image: bool = False
+
+    @property
+    @abstractmethod
+    def image_data(self) -> bytes:
         pass
 
 
@@ -111,11 +122,22 @@ class MessageAnimatedEmoji(BaseModel, MessageContent):
         return self.emoji
 
 
+class LocalFile(BaseModel):
+    path: str
+
+
+class File(BaseModel):
+    id: int
+    size: int
+    expected_size: int
+    local: LocalFile
+
+
 class Document(BaseModel):
     file_name: str
     mime_type: str
     minithumbnail: MiniThumbnail
-    # document: File
+    document: File
 
 
 class MessageDocument(BaseModel, MessageContent):
@@ -130,7 +152,7 @@ class MessageDocument(BaseModel, MessageContent):
 
 class Sizes(BaseModel):
     type: str
-    # photo: File
+    photo: File
     width: int
     height: int
     progressive_sizes: List[int]
@@ -141,14 +163,18 @@ class Photo(BaseModel):
     sizes: List[Sizes]
 
 
-class MessagePhoto(BaseModel, MessageContent):
+class MessagePhoto(BaseModel, MessageContent, HasImage):
     tdlib_type: Literal["messagePhoto"] = Field(..., alias="@type")
     photo: Photo
     caption: FormattedText
 
     @property
     def renderable_text(self):
-        return self.caption.text
+        return "Photo"
+
+    @property
+    def image_data(self) -> bytes:
+        return self.photo.minithumbnail.data
 
 
 class Message(BaseModel):
@@ -168,7 +194,7 @@ class Message(BaseModel):
     has_timestamped_media: bool
     is_channel_post: bool
     contains_unread_mention: bool
-    date: int
+    date: datetime
     edit_date: int
     interaction_info: Optional[MessageInteractionInfo]
 
@@ -178,4 +204,6 @@ class Message(BaseModel):
 
     @property
     def renderable_text(self):
+        if isinstance(self.content, MessagePhoto):
+            return self.content.renderable_text
         return f"{self.content.__class__.__name__}: {self.content.renderable_text}"
