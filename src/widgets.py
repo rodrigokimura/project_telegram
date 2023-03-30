@@ -21,7 +21,7 @@ from textual.widget import Widget
 from textual.widgets import Input, Label, ListItem, ListView, Static, TextLog
 
 from client import Client
-from models import HasImage, Message
+from models import HasDownloadableImage, HasImage, Message
 
 
 class ChatListItem(ListItem):
@@ -187,7 +187,7 @@ class MessageItem(ListItem):
     def compose(self) -> ComposeResult:
         msg_text = self.msg.renderable_text
 
-        if isinstance(self.msg.content, HasImage):
+        if isinstance(self.msg.content, HasImage) and self.msg.content.image_data:
             s = ImagePreview(self.msg.content.image_data, classes="content")
         else:
             s = Static(msg_text, classes="content")
@@ -213,8 +213,8 @@ class MessageItem(ListItem):
         yield s
 
     def action_select_item(self):
-        if isinstance(self.msg.content, HasImage):
-            file = self.tg.download_file(self.msg.content.photo.sizes[-1].photo.id)
+        if isinstance(self.msg.content, HasDownloadableImage):
+            file = self.tg.download_file(self.msg.content.downloadable_image_id)
             subprocess.Popen(["kitten", "icat", file.local.path])
 
     def action_deselect_item(self):

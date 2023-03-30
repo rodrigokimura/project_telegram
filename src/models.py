@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel as _BaseModel
 from pydantic import Field
@@ -59,11 +59,20 @@ class MessageContent(ABC):
 
 
 class HasImage(ABC):
-    has_image: bool = False
+    has_image: bool = True
 
     @property
     @abstractmethod
-    def image_data(self) -> bytes:
+    def image_data(self) -> Optional[bytes]:
+        pass
+
+
+class HasDownloadableImage(ABC):
+    has_downloadable_image: bool = True
+
+    @property
+    @abstractmethod
+    def downloadable_image_id(self) -> int:
         pass
 
 
@@ -94,6 +103,14 @@ class Sticker(BaseModel):
     height: int
     emoji: str
     thumbnail: Thumbnail
+
+
+class MessageContactRegistered(BaseModel, MessageContent):
+    tdlib_type: Literal["messageContactRegistered"] = Field(..., alias="@type")
+
+    @property
+    def renderable_text(self):
+        return "Contact registered."
 
 
 class MessageSticker(BaseModel, MessageContent):
@@ -135,11 +152,12 @@ class File(BaseModel):
 class Document(BaseModel):
     file_name: str
     mime_type: str
-    minithumbnail: MiniThumbnail
+    minithumbnail: Optional[MiniThumbnail]
+    thumbnail: Optional[Thumbnail]
     document: File
 
 
-class MessageDocument(BaseModel, MessageContent):
+class MessageDocument(BaseModel, MessageContent, HasImage):
     tdlib_type: Literal["messageDocument"] = Field(..., alias="@type")
     document: Document
     caption: FormattedText
@@ -147,6 +165,10 @@ class MessageDocument(BaseModel, MessageContent):
     @property
     def renderable_text(self):
         return self.caption.text
+
+    @property
+    def image_data(self) -> Optional[bytes]:
+        return self.document.minithumbnail.data if self.document.minithumbnail else None
 
 
 class Sizes(BaseModel):
@@ -158,11 +180,11 @@ class Sizes(BaseModel):
 
 
 class Photo(BaseModel):
-    minithumbnail: MiniThumbnail
+    minithumbnail: Optional[MiniThumbnail]
     sizes: List[Sizes]
 
 
-class MessagePhoto(BaseModel, MessageContent, HasImage):
+class MessagePhoto(BaseModel, MessageContent, HasImage, HasDownloadableImage):
     tdlib_type: Literal["messagePhoto"] = Field(..., alias="@type")
     photo: Photo
     caption: FormattedText
@@ -172,8 +194,12 @@ class MessagePhoto(BaseModel, MessageContent, HasImage):
         return "Photo"
 
     @property
-    def image_data(self) -> bytes:
-        return self.photo.minithumbnail.data
+    def image_data(self) -> Optional[bytes]:
+        return self.photo.minithumbnail.data if self.photo.minithumbnail else None
+
+    @property
+    def downloadable_image_id(self) -> int:
+        return self.photo.sizes[-1].photo.id
 
 
 class Message(BaseModel):
@@ -197,9 +223,14 @@ class Message(BaseModel):
     edit_date: int
     interaction_info: Optional[MessageInteractionInfo]
 
-    content: MessageText | MessageDocument | MessageSticker | MessageAnimatedEmoji | MessagePhoto = Field(
-        ..., discriminator="tdlib_type"
-    )
+    content: Union[
+        MessageText,
+        MessageDocument,
+        MessageSticker,
+        MessageAnimatedEmoji,
+        MessagePhoto,
+        MessageContactRegistered,
+    ] = Field(..., discriminator="tdlib_type")
 
     @property
     def renderable_text(self):
